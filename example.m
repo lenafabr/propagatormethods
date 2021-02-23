@@ -5,13 +5,14 @@ addpath('networktools')
 
 %% Load example network and plot
 NT=NetworkObj('example.net');
-NT.plotNetwork
+% plot network, with node indices labeled
+NT.plotNetwork(struct('labels',1))
 
 %% Analytic example 1
 % Choose two target nodes and find mean exit time (and variance) for 
 % particles starting on all nodes of the network
 
-targets = [4 17];                   % set targets
+targets = [4 17];                   % set target node indices
 absrates = zeros(NT.nedge,1);       % no absorbing edges
 
 [MFPTs,Vars,~] = networkMFPTanalytic(NT,absrates,targets);
@@ -26,6 +27,7 @@ scatter(NT.nodepos(:,1),NT.nodepos(:,2),60,MFPTs,'o','Filled')
 scatter(NT.nodepos(targets,1),NT.nodepos(targets,2),75,[0 .75 0],'o','Filled')
 colorbar
 hold off
+title('MFPT to targets (green)')
 
 %% Analytic example 2
 % Choose 3 absorbing edges with finite reaction rate, and find MFPTs/Vars
@@ -34,13 +36,13 @@ hold off
 targets=[];                         % no target nodes
 absedges = [4 10 22];               % choose which edges are absorbing
 absrates = zeros(NT.nedge,1);
-absrates(absedges) = [30 10 20];    % each edge can have a different rate
+absrates(absedges) = [30 10 20];    % each edge can have a different absorbance rate
 
 [MFPTs,Vars,~] = networkMFPTanalyticEdges(NT,absrates,targets);
 mean(MFPTs)
 mean(sqrt(Vars))
 
-cmap=colormap(spring);
+cmap=spring(256);
 figure
 NT.plotNetwork
 hold on
@@ -51,6 +53,11 @@ for i=absedges
     plot(NT.nodepos(NT.edgenodes(i,:),1), NT.nodepos(NT.edgenodes(i,:),2),'Color',[0 .75 0] ,'LineWidth',2.5)
 end
 hold off
+
+% fix colorbar
+%colormap(cmap)
+%colorbar
+title('Color = MFPT starting from each edge')
 
 %% Simulation example 1 (no save times, no edge propagation)
 
@@ -66,8 +73,8 @@ npart = 500;                        % number of particles to simulate
 [targethittime,~] = simulateNetworkHopper(NT,nethopinfo,npart,options);
 
 % The MFPT and standard deviation should match analytic results
-MFPTsSim = mean(targethittime(~isinf(targethittime)))
-STDSim   = std(targethittime(~isinf(targethittime)))
+MFPTsSim = mean(targethittime(~isinf(targethittime)));
+STDSim   = std(targethittime(~isinf(targethittime)));
 
 %% Particle pair simulation
 % Reuse nethopinfo from above
@@ -77,6 +84,7 @@ options.startedgeuniform = 1;       % must start on edges for pair sims
 npart = 100;                        % number of particle pairs to simulate
 
 [reacttimes] = simulateNetworkHopper_pair(NT,nethopinfo,npart,options);
-mean(reacttimes)
+
+encountertime = mean(reacttimes);
 
 

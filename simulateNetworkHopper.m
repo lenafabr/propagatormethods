@@ -299,21 +299,12 @@ for step = 1:opt.maxsteps
                 nodepos(pc) = nextnode;
             end
             
-        end
-        
-%         if (edgeid(pc)<=0)
-%             error('bad edge id')
-%         end
-        
+        end       
         
         if (dosave) % particle reached a savepoint
             curtime(pc) = nextsavetime(pc);
             % save positions in terms of edge id and position along edge
-            savepos(pc,:,nextsave(pc)) = [edgeid(pc) edgepos(pc)];
-            
-%             if (edgeid(pc)<=0)
-%                 error('bad edge id')
-%             end
+            savepos(pc,:,nextsave(pc)) = [edgeid(pc) edgepos(pc)];            
             
             nextsave(pc) = nextsave(pc)+1;
             if (nextsave(pc)>length(opt.savetimes))
