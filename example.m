@@ -5,8 +5,11 @@ addpath('networktools')
 
 %% Load example network and plot
 NT=NetworkObj('example.net');
+NT.setCumEdgeLen();
+
 % plot network, with node indices labeled
 NT.plotNetwork(struct('labels',1))
+title('Example network with node indices labeled')
 
 %% Analytic example 1
 % Choose two target nodes and find mean exit time (and variance) for 
@@ -16,17 +19,19 @@ targets = [4 17];                   % set target node indices
 absrates = zeros(NT.nedge,1);       % no absorbing edges
 
 [MFPTs,Vars,~] = networkMFPTanalytic(NT,absrates,targets);
-mean(MFPTs)
-mean(sqrt(Vars))
+MFPTanaly = mean(MFPTs)
+STDanaly = mean(sqrt(Vars))
 
 figure
 colormap spring
-NT.plotNetwork
+opt=struct();                       % struct for plotting options
+opt.nodesize=50;
+opt.nodecolor=MFPTs;
+NT.plotNetwork(opt)
 hold on
-scatter(NT.nodepos(:,1),NT.nodepos(:,2),60,MFPTs,'o','Filled')
 scatter(NT.nodepos(targets,1),NT.nodepos(targets,2),75,[0 .75 0],'o','Filled')
-colorbar
 hold off
+colorbar
 title('MFPT to targets (green)')
 
 %% Analytic example 2
@@ -36,30 +41,26 @@ title('MFPT to targets (green)')
 targets=[];                         % no target nodes
 absedges = [4 10 22];               % choose which edges are absorbing
 absrates = zeros(NT.nedge,1);
-absrates(absedges) = [30 10 20];    % each edge can have a different absorbance rate
+absrates(absedges) = [30 10 20];    % each edge can have a different absorption rate
 
 [MFPTs,Vars,~] = networkMFPTanalyticEdges(NT,absrates,targets);
 mean(MFPTs)
 mean(sqrt(Vars))
 
-cmap=spring(256);
+% plot network and color by MFPT along each edge
 figure
-NT.plotNetwork
-hold on
-for i=1:NT.nedge
-    plot(NT.nodepos(NT.edgenodes(i,:),1), NT.nodepos(NT.edgenodes(i,:),2),'Color',cmap(round(256*MFPTs(i)/max(MFPTs)),:),'LineWidth',2.5)
-end
-for i=absedges
-    plot(NT.nodepos(NT.edgenodes(i,:),1), NT.nodepos(NT.edgenodes(i,:),2),'Color',[0 .75 0] ,'LineWidth',2.5)
-end
-hold off
-
-% fix colorbar
-%colormap(cmap)
-%colorbar
+cmap=spring(100);colormap(cmap);
+opt=struct();
+opt.plotnodes=[];
+opt.edgeplotopt={'LineWidth',2.5};
+opt.edgecolor=cmap(round(100*MFPTs/max(MFPTs)),:);
+opt.edgecolor(absedges',:)=ones(length(absedges),3).*[0 .75 0];
+NT.plotNetwork(opt)
+caxis([min(MFPTs) max(MFPTs)])
+colorbar
 title('Color = MFPT starting from each edge')
 
-%% Simulation example 1 (no save times, no edge propagation)
+%% Simulation example 1 (no save times)
 
 % calculate propagator roots
 nethopinfo = networkPropagatorRoots(NT,struct('epsilon',1e-14));
@@ -70,21 +71,46 @@ options = struct();
 options.targetnodes = [4 17];       % set target nodes
 options.startedgeuniform = 0;       % option for starting on edges
 npart = 500;                        % number of particles to simulate
+
 [targethittime,~] = simulateNetworkHopper(NT,nethopinfo,npart,options);
 
-% The MFPT and standard deviation should match analytic results
-MFPTsSim = mean(targethittime(~isinf(targethittime)));
-STDSim   = std(targethittime(~isinf(targethittime)));
+% the MFPT and standard deviation should match analytic example 1
+MFPTsim = mean(targethittime(~isinf(targethittime)));
+STDsim   = std(targethittime(~isinf(targethittime)));
 
-%% Particle pair simulation
-% Reuse nethopinfo from above
+%% Simulation example 2 (with save times)
 
 options = struct();
-options.startedgeuniform = 1;       % must start on edges for pair sims
+options.savetimes = 0.01:0.01:1;    % specify save times
+options.targetnodes = [];           % no target nodes
+options.maxtime = 1;                % max time to run simulation
+npart = 5;
+
+[~,~,savepos,~] = simulateNetworkHopper(NT,nethopinfo,npart,options);
+
+% convert to trajectories
+tracklist = savepos2tracklist(NT,savepos);
+
+% plot single trajectory over network
+figure
+NT.plotNetwork()
+hold all
+colormap spring
+track = tracklist{2}; % use trajectory of particle 2
+scatter(track(:,1),track(:,2),25,options.savetimes,'filled')
+hold off
+colorbar
+title('Simulated trajectory of a single particle, color = time')
+
+%% Particle pair simulation
+% Reuse nethopinfo from above and find mean time to react for two particles
+% diffusing on the network.
+
+options = struct();
+options.startedgeuniform = 1;       % must start on edges for pair sims, chooses random location along random edge for each particle
 npart = 100;                        % number of particle pairs to simulate
 
 [reacttimes] = simulateNetworkHopper_pair(NT,nethopinfo,npart,options);
-
 encountertime = mean(reacttimes);
 
 
