@@ -78,6 +78,8 @@ npart = 500;                        % number of particles to simulate
 MFPTsim = mean(targethittime(~isinf(targethittime)));
 STDsim   = std(targethittime(~isinf(targethittime)));
 
+disp(sprintf('Simulated and analytic MFPTs: %f %f', MFPTsim, MFPTanaly))
+disp(sprintf('Simulated and analytic st.dev.: %f %f',STDsim,STDanaly))
 %% Simulation example 2 (with save times)
 
 options = struct();
@@ -111,6 +113,6 @@ options.startedgeuniform = 1;       % must start on edges for pair sims, chooses
 npart = 100;                        % number of particle pairs to simulate
 
 [reacttimes] = simulateNetworkHopper_pair(NT,nethopinfo,npart,options);
-encountertime = mean(reacttimes);
+encountertime = mean(reacttimes)
 
 
