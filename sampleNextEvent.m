@@ -53,7 +53,9 @@ end
                         tsamp=[0;0];
                         whichbound=[-1;-1];
                         newedgeid = [0;0];
-                        newnodepos = [nodepos(pother);nodepos(pother)];
+                        %DEBUG
+                        newnodepos = [nodepos(pc);nodepos(pc)];
+                        %newnodepos = [nodepos(pother);nodepos(pother)];
                         newedgepos = [NaN;NaN];                 
                         sameedge = 2;
                         return               
@@ -92,6 +94,7 @@ end
         end
         
     else
+        % particles are on different edges
         sameedge = 0;
         fields = {'H','W','tiltrect','edgeinfo1','edgeinfo2','L'};
         c = cell(length(fields),1);
@@ -136,7 +139,7 @@ end
                         newedgepos(cc) = L;                        
                     end
                     
-                else % hop on full edge
+                else % other particle is not on an adjacent node; hop on full edge
                     L = NT.edgelens(ec);
                     x0 = edgepos(pc);
                     [whichbound(cc),tsamp(cc), success,edgehopinfo] = sampleHopTime_edge(x0,L,xi);
@@ -152,9 +155,9 @@ end
                 
                 boundtype = zeros(deg,1);
                 lens = zeros(deg,1);
-                for bc = 1:NT.degrees(nc)
+                for bc = 1:NT.degrees(nc) % look at each adjacent edge
                     ec = NT.nodeedges(nc,bc);
-                    if (nodepos(pother)==0 && edgeid(pother) == ec) % particle on adjacent edge
+                    if (nodepos(pother)==0 && edgeid(pother) == ec) % other particle is on this adjacent edge
                         if (NT.edgenodes(ec,1) == nc)
                             % keep track of minimal length from this node
                             lens(bc) = edgepos(pother)/2;
@@ -163,16 +166,16 @@ end
                         end
                         boundtype(bc) = 1; % edge boundary type
                     elseif (nodepos(pother)==NT.edgenodes(ec,1) || nodepos(pother)==NT.edgenodes(ec,2))
-                        % particle on adjacent node
+                        % other particle is on adjacent node
                         lens(bc) = NT.edgelens(ec)/2;
                         boundtype(bc) = 1;
-                    else % no particle on this edge or adjacent node
+                    else % no other particle on this edge or adjacent node
                         lens(bc) = NT.edgelens(ec);    
                         boundtype(bc) = 0; % node boundary type
                     end
                 end
                 
-                if (all(boundtype==0))
+                if (all(boundtype==0)) % all far boundaries are nodes
                     sameedge = 0;
                     % full sampling of node with different length edges
                     P = nethopinfo.Pvals(1:deg,nc);

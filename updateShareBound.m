@@ -1,7 +1,9 @@
 function sharebound = updateShareBound(NT,nodepos,edgepos,edgeid)
 % for 2 particles, decide whether they share boundaries
+% sharebound(i,j) = true if particle i shares its j-th boundary with
+% another particle
 
-sharebound = false(2,NT.maxdeg);
+sharebound = false(2,max(NT.maxdeg,2));
 
 if nodepos(1) == 0
     % particle 1 on an edge
@@ -31,7 +33,7 @@ if nodepos(1) == 0
     else  
         % particle 2 on node
         nc = nodepos(2);
-        ec = edgeid(1);
+        %ec = edgeid(1);
                         
         for ecc = 1:NT.degrees(nc)
             if NT.nodeedges(nc,ecc) == ec %particle is on an edge adjacent to this node

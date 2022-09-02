@@ -1,4 +1,4 @@
-function [reacttimes] = simulateNetworkHopper_pair(NT,nethopinfo,npart,options)
+function [reacttimes,edgeid_initial,reactedge,reactpos] = simulateNetworkHopper_pair(NT,nethopinfo,npart,options)
 % simulate *multiple interacting particles* hopping on a network
 % only runs one iteration at a time
 % NT = network object
@@ -83,7 +83,9 @@ if (opt.startedgeuniform)
     % sample starting edge id (proportional to edge length)
     lens = NT.edgelens;
     edgeid = datasample(1:NT.nedge,npart*2,'Weights',lens);
+    if (NT.nedge==1); edgeid = edgeid'; end
     edgeid = [edgeid(1:npart); edgeid(npart+1:end)];
+    edgeid_initial = edgeid;
     % sample starting edge position uniformly
     edgepos = rand(2,npart).*lens(edgeid);
     nodepos = zeros(2,npart);
@@ -140,6 +142,7 @@ whichbound = zeros(2,npart);
 nextnodepos = zeros(2,npart);
 nextedgepos = zeros(2,npart);
 nextedgeid = zeros(2,npart);
+prevtime = zeros(2,npart);
 
 % establish if particles share a boundary
 for pc = 1:npart % cycle over all trials
@@ -160,6 +163,10 @@ for pc = 1:npart
     if whichbound(1,pc) == -1
         done(pc) = true;
         reacttimes(pc) = tsamp;
+
+        % also save reaction position, edge id and position along edge
+        reactedge(pc) = nextedgeid(1,pc);
+        reactpos(pc) = nextedgepos(1,pc);
     end
 end
 
@@ -177,15 +184,17 @@ for step = 1:opt.maxsteps
         disp([step a pleft(b) nnz(done)])
     end
     
-    for pc = 1:npart
+    for pc = 1:npart % cycle over particle pairs
         if (done(pc)); continue; end
         
         [mintime,nextpart] = min(nexteventtime(:,pc));
         otherpart = 3-nextpart;
-        dt = mintime-curtime(pc);
-        curtime(pc) = mintime;
+        dt = mintime-curtime(pc);        
+        curtime(pc) = mintime;           
         
-        if (sameedge(pc)==1)
+        if (sameedge(pc)==1) 
+            % both particles were propagated together (started on same edg)
+            % update position for both of them            
             edgepos(:,pc) = nextedgepos(:,pc);
             edgeid(:,pc) = nextedgeid(:,pc);
             nodepos(:,pc) = nextnodepos(:,pc);
@@ -204,6 +213,10 @@ for step = 1:opt.maxsteps
             % reaction event
             done(pc) = true;
             reacttimes(pc) = mintime;
+            
+            % also save reaction position, edge id and position along edge
+            reactedge(pc) = nextedgeid(nextpart,pc);
+            reactpos(pc) = nextedgepos(nextpart,pc);
             continue
         end
         
@@ -218,7 +231,7 @@ for step = 1:opt.maxsteps
             % numerical issues if one particle takes infinitessimally tiny step
             % the other should then not be propagated
             if (dt>0) 
-                if (nodepos(otherpart,pc)==0) % particle currently on edge
+                if (nodepos(otherpart,pc)==0) % other particle currently on edge
                     edgeinfo = edgeinfoboth(otherpart,pc);
                     if (isempty(edgeinfo.lens))
                         error('missing edge info')
@@ -243,6 +256,8 @@ for step = 1:opt.maxsteps
                         distnode = edgeinfo.lens(whichedge)-xsamp;
                         newedge = randi(deg,1); % pick new edge randomly
                         ec = NT.nodeedges(nc,newedge);
+                        edgeid(otherpart,pc) = ec;
+                        nodepos(otherpart,pc) = 0;
                         if (NT.edgenodes(ec,1)==nc) % outgoing edge
                             edgepos(otherpart,pc) = distnode;
                         elseif (NT.edgenodes(ec,2)==nc) % incoming edge
@@ -275,30 +290,35 @@ for step = 1:opt.maxsteps
             end
             
             % sample new event times for both particles
+            prevtime(:,pc) = nexteventtime(nextpart,pc);
             psample = [1,2];
             [tsamp, whichbound(:,pc), nextnodepos(:,pc),nextedgeid(:,pc),nextedgepos(:,pc),...
                 edgeinfotmp,rectinfotmp,sameedge(pc)] = ...
                 sampleNextEvent(NT,psample,nodepos(:,pc),edgeid(:,pc),edgepos(:,pc),nethopinfo);
             
-            nexteventtime(:,pc) = curtime(pc)+tsamp;
+            %nexteventtime(:,pc) = prevtime(:,pc)+tsamp';
+            nexteventtime(:,pc) = curtime(pc)+tsamp';
             
             rectinfo(pc) = rectinfotmp;
             edgeinfoboth(:,pc) = edgeinfotmp;
             
-            % update shared boundaries
-            sharebound(:,:,pc) = updateShareBound(NT,nodepos(:,pc),edgepos(:,pc),edgeid(:,pc));
+            % update shared boundaries [this is done later]
+            %sharebound(:,:,pc) = updateShareBound(NT,nodepos(:,pc),edgepos(:,pc),edgeid(:,pc));
             
         elseif (sameedge(pc)==1)
             % particles on same edge
             if (opt.verbose)
                 disp(sprintf('Iter %d Same edge',pc))
             end
+            prevtime(:,pc) = nexteventtime(nextpart,pc);
+            
             % sample new event times for both particles
             psample = [1,2];
             [tsamp, whichbound(:,pc), nextnodepos(:,pc),nextedgeid(:,pc),nextedgepos(:,pc),...
                 edgeinfotmp,rectinfotmp,sameedge(pc)] = ...
                 sampleNextEvent(NT,psample,nodepos(:,pc),edgeid(:,pc),edgepos(:,pc),nethopinfo);
-            nexteventtime(:,pc) = curtime(pc)+tsamp;
+            %nexteventtime(:,pc) = prevtime(:,pc)+tsamp';
+            nexteventtime(:,pc) = curtime(pc)+tsamp';
             
             rectinfo(pc) = rectinfotmp;
             edgeinfoboth(:,pc) = edgeinfotmp;
@@ -311,6 +331,7 @@ for step = 1:opt.maxsteps
             % particle jumped to a boundary that is not shared
             % leave the other particle alone, and only sample a new
             % time for the jumping particle
+            prevtime(nextpart,pc) = nexteventtime(nextpart,pc);
             psample = nextpart;
             [tsamp, whichbound(nextpart,pc), nextnodepos(nextpart,pc),...
                 nextedgeid(nextpart,pc),nextedgepos(nextpart,pc),...
@@ -318,7 +339,8 @@ for step = 1:opt.maxsteps
                 sampleNextEvent(NT,psample,nodepos(:,pc),edgeid(:,pc),edgepos(:,pc),nethopinfo);
             edgeinfoboth(nextpart,pc) = edgeinfotmp(1);
             
-            nexteventtime(nextpart,pc) = curtime(pc)+tsamp;
+            nexteventtime(nextpart,pc) = curtime(pc)+tsamp;             
+            %nexteventtime(nextpart,pc) = prevtime(nextpart,pc)+tsamp;
         end
         
         % update boundary sharing information
